@@ -11,6 +11,7 @@ import rx.functions.Func1;
 import rx.functions.Func2;
 import rx.schedulers.Schedulers;
 import rx.subjects.ReplaySubject;
+import rx.subscriptions.CompositeSubscription;
 
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -34,11 +35,15 @@ public class Promise<T> {
     public static Scheduler DEFAULT_CALLBACKS_SCHEDULER = null;
 
     private final Observable<T> observable;
+    private final CompositeSubscription allSubscriptions;
+    private final Subscription originalSubscription;
 
-    private Promise(final Observable<T> observable) {
+    private Promise(final Observable<T> observable, CompositeSubscription allSubscriptions) {
         final ReplaySubject<T> subject = ReplaySubject.create(1);
 
-        applyObserveOnScheduler(observable.single(), DEFAULT_CALLBACKS_SCHEDULER).subscribe(subject);
+        this.allSubscriptions = allSubscriptions;
+        this.originalSubscription = applyObserveOnScheduler(observable.single(), DEFAULT_CALLBACKS_SCHEDULER).subscribe(subject);
+        this.allSubscriptions.add(originalSubscription);
         this.observable = subject;
     }
 
@@ -48,7 +53,7 @@ public class Promise<T> {
      * {@code IllegalArgumentException} or {@code NoSuchElementException} respectively.
      */
     public static <T> Promise<T> promise(Observable<T> observable) {
-        return new Promise<>(observable);
+        return new Promise<>(observable, new CompositeSubscription());
     }
 
     /**
@@ -218,14 +223,14 @@ public class Promise<T> {
      * asynchronously with an unbounded buffer.
      */
     public Promise<T> callbacksOn(Scheduler scheduler) {
-        return new Promise<>(this.observable.observeOn(scheduler));
+        return new Promise<>(this.observable.observeOn(scheduler), allSubscriptions);
     }
 
     /**
      * Maps this promise to a promise of type U.
      */
     public <U> Promise<U> map(Func1<T, U> func) {
-        return new Promise<>(this.observable.map(func));
+        return new Promise<>(this.observable.map(func), allSubscriptions);
     }
 
     /**
@@ -233,7 +238,7 @@ public class Promise<T> {
      * @param func The function supplying the promise when the source promise is rejected.
      */
     public Promise<T> onErrorReturn(final Func1<Throwable, Promise<T>> func) {
-        return new Promise<>(this.observable.onErrorResumeNext(throwable -> func.call(throwable).observable));
+        return new Promise<>(this.observable.onErrorResumeNext(throwable -> func.call(throwable).observable), allSubscriptions);
     }
 
     /**
@@ -241,14 +246,14 @@ public class Promise<T> {
      * @param other The promise to transform into when the source promise is rejected.
      */
     public Promise<T> onErrorReturn(final Promise<T> other) {
-        return new Promise<>(this.observable.onErrorResumeNext(other.observable));
+        return new Promise<>(this.observable.onErrorResumeNext(other.observable), allSubscriptions);
     }
 
     /**
      * Maps the result of this promise to a promise for a result of type U, and flattens that to be a single promise for U.
      */
     public <U> Promise<U> flatMap(final Func1<T, Promise<U>> func) {
-        return new Promise<>(this.observable.flatMap(value -> func.call(value).observable));
+        return new Promise<>(this.observable.flatMap(value -> func.call(value).observable), allSubscriptions);
     }
 
     /**
@@ -288,7 +293,7 @@ public class Promise<T> {
      * specified delay. Error notifications from the source promise are not delayed.
      */
     public Promise<T> delay(long delay, TimeUnit unit) {
-        return new Promise<>(observable.delay(delay, unit));
+        return new Promise<>(observable.delay(delay, unit), allSubscriptions);
     }
 
     /**
@@ -297,7 +302,7 @@ public class Promise<T> {
      * the resulting promise is rejected with a {@code TimeoutException}.
      */
     public Promise<T> timeout(long timeout, TimeUnit timeUnit) {
-        return new Promise<>(observable.timeout(timeout, timeUnit));
+        return new Promise<>(observable.timeout(timeout, timeUnit), allSubscriptions);
     }
 
     /**
@@ -306,7 +311,7 @@ public class Promise<T> {
      * the resulting promise transforms into a fallback Promise.
      */
     public Promise<T> timeout(long timeout, TimeUnit timeUnit, Promise<T> fallback) {
-        return new Promise<>(observable.timeout(timeout, timeUnit, fallback.observable));
+        return new Promise<>(observable.timeout(timeout, timeUnit, fallback.observable), allSubscriptions);
     }
 
     /**
@@ -327,5 +332,12 @@ public class Promise<T> {
 
     protected Observable<T> getObservable() {
         return observable;
+    }
+
+    /**
+     * Cancel *all* promises in the chain
+     */
+    public void cancel() {
+        allSubscriptions.unsubscribe();
     }
 }
