@@ -107,7 +107,11 @@ public class Promise<T> {
      */
     @SuppressWarnings("unchecked")
     public static <T> Promise<List<T>> all(Iterable<Promise<T>> promises) {
-        return promise(combineLatest(coerceToList(promises, (promise, index) -> promise.observable), args -> asList((T[]) args)));
+        List<Observable<T>> observables = coerceToList(promises, (promise, index) -> promise.observable);
+        if (observables.isEmpty()) {
+            return just(Collections.emptyList());
+        }
+        return promise(combineLatest(observables, args -> asList((T[]) args)));
     }
 
     /**

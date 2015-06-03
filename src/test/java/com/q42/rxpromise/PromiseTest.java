@@ -18,6 +18,8 @@ public class PromiseTest {
         List<String> result = Promise.all(succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
         assertThat(result, contains("a", "b", "c", "d", "e"));
 
+        assertThat(Promise.all().blocking(), iterableWithSize(0));
+
         try {
             Promise.all(error(new TestException(), 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
             fail();
