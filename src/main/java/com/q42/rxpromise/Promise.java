@@ -5,10 +5,7 @@ import rx.Observer;
 import rx.Scheduler;
 import rx.Subscription;
 import rx.exceptions.CompositeException;
-import rx.functions.Action0;
-import rx.functions.Action1;
-import rx.functions.Func1;
-import rx.functions.Func2;
+import rx.functions.*;
 import rx.schedulers.Schedulers;
 import rx.subjects.ReplaySubject;
 
@@ -17,6 +14,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Arrays.asList;
+import static rx.Observable.combineLatest;
 import static rx.Observable.merge;
 
 /**
@@ -109,25 +107,7 @@ public class Promise<T> {
      */
     @SuppressWarnings("unchecked")
     public static <T> Promise<List<T>> all(Iterable<Promise<T>> promises) {
-        final List<Observable<Tuple<T>>> listWithIndex = coerceToList(promises, (promise, index) -> promise.observable.map(t -> new Tuple<>(index, t)));
-
-        return promise(merge(listWithIndex).toList().map(tuples -> {
-            T[] resultWithoutIndexes = (T[]) new Object[tuples.size()];
-            for (Tuple<T> tuple : tuples) {
-                resultWithoutIndexes[tuple.index] = tuple.b;
-            }
-            return Arrays.asList(resultWithoutIndexes);
-        }));
-    }
-
-    private static class Tuple<B> {
-        private final Integer index;
-        private final B b;
-
-        private Tuple(Integer index, B b) {
-            this.index = index;
-            this.b = b;
-        }
+        return promise(combineLatest(coerceToList(promises, (promise, index) -> promise.observable), args -> asList((T[]) args)));
     }
 
     /**
@@ -143,7 +123,7 @@ public class Promise<T> {
      */
     @SafeVarargs
     public static <T> Promise<List<T>> some(final int count, Promise<T>... promises) {
-        return some(count, Arrays.asList(promises));
+        return some(count, asList(promises));
     }
 
     /**
@@ -189,6 +169,10 @@ public class Promise<T> {
         }
         return result;
     }
+//
+//    public static <T1,T2,T3,T4,T5,T6,T7,T8,T9,R> Promise<R> spread(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, Promise<T8> p8, Promise<T9> p9, Func9<T1,T2,T3,T4,T5,T6,T7,T8,T9,R> combineFunction) {
+//        return Observable.combineLatest(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, p8.observable, p9.observable, combineFunction);
+//    }
 
     /**
      * Only return the values of promises that are successfully fulfilled,
@@ -199,7 +183,7 @@ public class Promise<T> {
      */
     @SafeVarargs
     public static <T> Promise<List<T>> any(Promise<T>... promises) {
-        return any(Arrays.asList(promises));
+        return any(asList(promises));
     }
 
     /**
