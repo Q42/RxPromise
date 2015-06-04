@@ -59,7 +59,7 @@ public class Promise<T> {
      * Returns a promise that executes the specified {@link Callable} on the specified {@link Scheduler}
      */
     public static <T> Promise<T> promise(final Callable<T> callable, final Scheduler scheduler) {
-        return promise(Observable.<T>create(new Observable.OnSubscribe<T>() {
+        return promise(Observable.create(new Observable.OnSubscribe<T>() {
             @Override
             public void call(Subscriber<? super T> subscriber) {
                 try {
@@ -109,12 +109,7 @@ public class Promise<T> {
      */
     @SuppressWarnings("unchecked")
     public static <T> Promise<List<T>> all(Iterable<Promise<T>> promises) {
-        List<Observable<T>> observables = coerceToList(promises, new Func2<Promise<T>, Integer, Observable<T>>() {
-            @Override
-            public Observable<T> call(Promise<T> p, Integer index) {
-                return p.observable;
-            }
-        });
+        List<Observable<T>> observables = coerceToList(promises, Promise.<T>coerceToObservable());
 
         if (observables.isEmpty()) {
             return just(Collections.<T>emptyList());
@@ -161,12 +156,7 @@ public class Promise<T> {
         }
 
         final List<Throwable> errors = new ArrayList<>(Math.min(count, 16));
-        final List<Observable<T>> observables = coerceToList(promises, new Func2<Promise<T>, Integer, Observable<T>>() {
-            @Override
-            public Observable<T> call(Promise<T> p, Integer index) {
-                return p.observable;
-            }
-        });
+        final List<Observable<T>> observables = coerceToList(promises, Promise.<T>coerceToObservable());
 
         if (observables.size() < count) {
             throw new IllegalArgumentException("Iterable does not contains enough promises");
@@ -192,14 +182,6 @@ public class Promise<T> {
         })).take(count).toList());
     }
 
-    private static <T,R> List<R> coerceToList(Iterable<T> iterable, Func2<T, Integer, R> func) {
-        ArrayList<R> result = iterable instanceof Collection ? new ArrayList<R>(((Collection) iterable).size()) : new ArrayList<R>();
-        int index = 0;
-        for (T o : iterable) {
-            result.add(func.call(o, index++));
-        }
-        return result;
-    }
 
     /**
      * Only return the values of promises that are successfully fulfilled,
@@ -221,17 +203,7 @@ public class Promise<T> {
      * @return A promise that combines the values into a {@link List}
      */
     public static <T> Promise<List<T>> any(final Iterable<Promise<T>> promises) {
-        return promise(merge(coerceToList(promises, new Func2<Promise<T>, Integer, Observable<T>>() {
-            @Override
-            public Observable<T> call(Promise<T> promise, Integer index) {
-                return promise.observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
-                    @Override
-                    public Observable<T> call(Throwable throwable) {
-                        return Observable.empty();
-                    }
-                });
-            }
-        })).toList());
+        return promise(merge(coerceToList(promises, Promise.<T>ignoreRejection())).toList());
     }
 
     /**
@@ -353,12 +325,44 @@ public class Promise<T> {
         return observable.toBlocking().single();
     }
 
+    private static <T,R> List<R> coerceToList(Iterable<T> iterable, Func2<T, Integer, R> func) {
+        ArrayList<R> result = iterable instanceof Collection ? new ArrayList<R>(((Collection) iterable).size()) : new ArrayList<R>();
+        int index = 0;
+        for (T o : iterable) {
+            result.add(func.call(o, index++));
+        }
+        return result;
+    }
+
+    private static <T> Func2<Promise<T>, Integer, Observable<T>> ignoreRejection() {
+        return new Func2<Promise<T>, Integer, Observable<T>>() {
+            @Override
+            public Observable<T> call(Promise<T> promise, Integer index) {
+                return promise.observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
+                    @Override
+                    public Observable<T> call(Throwable throwable) {
+                        return Observable.empty();
+                    }
+                });
+            }
+        };
+    }
+
     private static <T> Observable<T> applyObserveOnScheduler(final Observable<T> observable, final Scheduler scheduler) {
         if (scheduler != null) {
             return observable.observeOn(scheduler);
         }
 
         return observable;
+    }
+
+    private static <T> Func2<Promise<T>, Integer, Observable<T>> coerceToObservable() {
+        return new Func2<Promise<T>, Integer, Observable<T>>() {
+            @Override
+            public Observable<T> call(Promise<T> p, Integer index) {
+                return p.observable;
+            }
+        };
     }
 
     protected Observable<T> getObservable() {
