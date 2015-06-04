@@ -1,9 +1,11 @@
 package com.q42.rxpromise;
 
 import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.junit.Test;
 import rx.exceptions.CompositeException;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -15,6 +17,31 @@ import static org.junit.Assert.fail;
  * Created by thijs on 02-06-15.
  */
 public class PromiseTest {
+    private final HashMap<String, Long> lastStartTimes = new HashMap<>();
+
+    @Before
+    public void before() {
+        lastStartTimes.clear();
+    }
+
+    @Test
+    public void testAllConcurrent() {
+        Promise.all(succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
+        testAllValuesConcurrent();
+    }
+
+    @Test
+    public void testSomeConcurrent() {
+        Promise.some(4, succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
+        testAllValuesConcurrent();
+    }
+
+    @Test
+    public void testAnyConcurrent() {
+        Promise.any(succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
+        testAllValuesConcurrent();
+    }
+
     @Test
     public void testAll() {
         List<String> result = Promise.all(succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
@@ -127,10 +154,11 @@ public class PromiseTest {
         }
     }
 
-    private <T> Promise<T> succes(final T value, final long sleep) {
-        return Promise.async(new Callable<T>() {
+    private Promise<String> succes(final String value, final long sleep) {
+        return Promise.async(new Callable<String>() {
             @Override
-            public T call() throws Exception {
+            public String call() throws Exception {
+                lastStartTimes.put(value, System.currentTimeMillis());
                 Thread.sleep(sleep);
                 return value;
             }
@@ -149,6 +177,17 @@ public class PromiseTest {
                 throw t;
             }
         });
+    }
+
+    private void testAllValuesConcurrent() {
+        testConcurrent(lastStartTimes.keySet());
+    }
+
+    private void testConcurrent(Iterable<String> values) {
+        long now = System.currentTimeMillis();
+        for (String value : values) {
+            assertThat(lastStartTimes.get(value), Matchers.lessThanOrEqualTo(now + 50));
+        }
     }
 
     public class TestException extends Exception {}

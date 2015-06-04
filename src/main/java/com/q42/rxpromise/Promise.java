@@ -207,8 +207,7 @@ public class Promise<T> {
     }
 
     /**
-     * Modifies an Promise to perform its callbacks on a specified {@link Scheduler},
-     * asynchronously with an unbounded buffer.
+     * Modifies an Promise to perform its callbacks on a specified {@link Scheduler}
      */
     public Promise<T> callbacksOn(Scheduler scheduler) {
         return new Promise<>(this.observable.observeOn(scheduler));
@@ -281,6 +280,14 @@ public class Promise<T> {
      */
     public Subscription then(final Action1<T> fulfilmentCallback, final Action1<Throwable> rejectedCallback, final Action0 onFinally) {
         return this.observable.subscribe(fulfilmentCallback, rejectedCallback, onFinally);
+    }
+
+    /**
+     * Attach callbacks for when the promise gets fulfilled or rejected.
+     * @return Subscription so you can unsubscribe
+     */
+    public Subscription then(final ObserverBuilder<T> builder) {
+        return this.observable.subscribe(builder.build());
     }
 
     /**
