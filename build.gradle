@@ -1,4 +1,7 @@
 apply plugin: 'java'
+apply plugin: 'maven'
+
+group = 'com.q42.rxpromise'
 
 sourceCompatibility = 1.8
 version = '1.0'
