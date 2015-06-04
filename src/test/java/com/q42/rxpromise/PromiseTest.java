@@ -1,9 +1,11 @@
 package com.q42.rxpromise;
 
+import org.hamcrest.Matchers;
 import org.junit.Test;
 import rx.exceptions.CompositeException;
 
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
@@ -69,7 +71,7 @@ public class PromiseTest {
                 contains("c"));
 
         assertThat(Promise.some(0, error("a", 500), error("b", 400), succes("c", 200), error("d", 300), error("e", 0)).blocking(),
-                iterableWithSize(0));
+                Matchers.<String>iterableWithSize(0));
 
         try {
             Promise.some(3, error(new TestException(), 50), error("b", 100), error("c", 150)).blocking();
@@ -112,7 +114,7 @@ public class PromiseTest {
                 contains("a"));
 
         assertThat(Promise.any(error("a", 500), error("b", 400), error("c", 200), error("d", 300), error("e", 0)).blocking(),
-                iterableWithSize(0));
+                Matchers.<String>iterableWithSize(0));
     }
 
     private void testCompositeException(int count, Promise<?> promise) {
@@ -121,25 +123,31 @@ public class PromiseTest {
             fail();
         } catch (TooManyErrorsException e) {
             assertThat(e.getCause(), is(instanceOf(CompositeException.class)));
-            assertThat(((CompositeException) e.getCause()).getExceptions(), iterableWithSize(count));
+            assertThat(((CompositeException) e.getCause()).getExceptions(), Matchers.<Throwable>iterableWithSize(count));
         }
     }
 
-    private <T> Promise<T> succes(T value, long sleep) {
-        return Promise.async(() -> {
-            Thread.sleep(sleep);
-            return value;
+    private <T> Promise<T> succes(final T value, final long sleep) {
+        return Promise.async(new Callable<T>() {
+            @Override
+            public T call() throws Exception {
+                Thread.sleep(sleep);
+                return value;
+            }
         });
     }
 
-    private <T> Promise<T> error(String errorMessage, long sleep) {
+    private Promise<String> error(String errorMessage, long sleep) {
         return error(new Exception(errorMessage), sleep);
     }
 
-    private <T> Promise<T> error(Exception t, long sleep) {
-        return Promise.async(() -> {
-            Thread.sleep(sleep);
-            throw t;
+    private Promise<String> error(final Exception t, final long sleep) {
+        return Promise.async(new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                Thread.sleep(sleep);
+                throw t;
+            }
         });
     }
 

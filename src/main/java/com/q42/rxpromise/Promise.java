@@ -1,9 +1,8 @@
 package com.q42.rxpromise;
 
+import rx.*;
 import rx.Observable;
 import rx.Observer;
-import rx.Scheduler;
-import rx.Subscription;
 import rx.exceptions.CompositeException;
 import rx.functions.*;
 import rx.schedulers.Schedulers;
@@ -60,12 +59,15 @@ public class Promise<T> {
      * Returns a promise that executes the specified {@link Callable} on the specified {@link Scheduler}
      */
     public static <T> Promise<T> promise(final Callable<T> callable, final Scheduler scheduler) {
-        return promise(Observable.<T>create(subscriber -> {
-            try {
-                subscriber.onNext(callable.call());
-                subscriber.onCompleted();
-            } catch (Throwable throwable) {
-                subscriber.onError(throwable);
+        return promise(Observable.<T>create(new Observable.OnSubscribe<T>() {
+            @Override
+            public void call(Subscriber<? super T> subscriber) {
+                try {
+                    subscriber.onNext(callable.call());
+                    subscriber.onCompleted();
+                } catch (Throwable throwable) {
+                    subscriber.onError(throwable);
+                }
             }
         }).subscribeOn(scheduler));
     }
@@ -81,7 +83,7 @@ public class Promise<T> {
      * Returns a promise that will be rejected immediately with the supplied error
      */
     public static <T> Promise<T> error(final Throwable throwable) {
-        return promise(Observable.error(throwable));
+        return promise(Observable.<T>error(throwable));
     }
 
     /**
@@ -107,11 +109,23 @@ public class Promise<T> {
      */
     @SuppressWarnings("unchecked")
     public static <T> Promise<List<T>> all(Iterable<Promise<T>> promises) {
-        List<Observable<T>> observables = coerceToList(promises, (promise, index) -> promise.observable);
+        List<Observable<T>> observables = coerceToList(promises, new Func2<Promise<T>, Integer, Observable<T>>() {
+            @Override
+            public Observable<T> call(Promise<T> p, Integer index) {
+                return p.observable;
+            }
+        });
+
         if (observables.isEmpty()) {
-            return just(Collections.emptyList());
+            return just(Collections.<T>emptyList());
         }
-        return promise(combineLatest(observables, args -> asList((T[]) args)));
+
+        return promise(combineLatest(observables, new FuncN<List<T>>() {
+            @Override
+            public List<T> call(Object... args) {
+                return asList((T[]) args);
+            }
+        }));
     }
 
     /**
@@ -143,40 +157,49 @@ public class Promise<T> {
      */
     public static <T> Promise<List<T>> some(final int count, final Iterable<Promise<T>> promises) {
         if (count == 0) {
-            return just(Collections.emptyList());
+            return just(Collections.<T>emptyList());
         }
 
         final List<Throwable> errors = new ArrayList<>(Math.min(count, 16));
-        final List<Observable<T>> list = coerceToList(promises, (promise, integer) -> promise.observable);
+        final List<Observable<T>> observables = coerceToList(promises, new Func2<Promise<T>, Integer, Observable<T>>() {
+            @Override
+            public Observable<T> call(Promise<T> p, Integer index) {
+                return p.observable;
+            }
+        });
 
-        if (list.size() < count) {
+        if (observables.size() < count) {
             throw new IllegalArgumentException("Iterable does not contains enough promises");
         }
 
-        return promise(merge(coerceToList(list, (observable, index) -> observable.onErrorResumeNext(throwable -> {
-            synchronized (errors) {
-                errors.add(throwable);
-                if (list.size() - errors.size() < count) {
-                    throw new TooManyErrorsException(errors.size() == 1 ? errors.get(0) : new CompositeException(errors));
-                }
-            }
+        return promise(merge(coerceToList(observables, new Func2<Observable<T>, Integer, Observable<T>>() {
+            @Override
+            public Observable<T> call(Observable<T> observable, Integer integer) {
+                return observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
+                    @Override
+                    public Observable<T> call(Throwable throwable) {
+                        synchronized (errors) {
+                            errors.add(throwable);
+                            if (observables.size() - errors.size() < count) {
+                                throw new TooManyErrorsException(errors.size() == 1 ? errors.get(0) : new CompositeException(errors));
+                            }
+                        }
 
-            return Observable.empty();
-        }))).take(count).toList());
+                        return Observable.empty();
+                    }
+                });
+            }
+        })).take(count).toList());
     }
 
     private static <T,R> List<R> coerceToList(Iterable<T> iterable, Func2<T, Integer, R> func) {
-        ArrayList<R> result = iterable instanceof Collection ? new ArrayList<>(((Collection) iterable).size()) : new ArrayList<>();
+        ArrayList<R> result = iterable instanceof Collection ? new ArrayList<R>(((Collection) iterable).size()) : new ArrayList<R>();
         int index = 0;
         for (T o : iterable) {
             result.add(func.call(o, index++));
         }
         return result;
     }
-//
-//    public static <T1,T2,T3,T4,T5,T6,T7,T8,T9,R> Promise<R> spread(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, Promise<T8> p8, Promise<T9> p9, Func9<T1,T2,T3,T4,T5,T6,T7,T8,T9,R> combineFunction) {
-//        return Observable.combineLatest(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, p8.observable, p9.observable, combineFunction);
-//    }
 
     /**
      * Only return the values of promises that are successfully fulfilled,
@@ -198,7 +221,17 @@ public class Promise<T> {
      * @return A promise that combines the values into a {@link List}
      */
     public static <T> Promise<List<T>> any(final Iterable<Promise<T>> promises) {
-        return promise(merge(coerceToList(promises, (promise, index) -> promise.observable.onErrorResumeNext(throwable -> Observable.empty()))).toList());
+        return promise(merge(coerceToList(promises, new Func2<Promise<T>, Integer, Observable<T>>() {
+            @Override
+            public Observable<T> call(Promise<T> promise, Integer index) {
+                return promise.observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
+                    @Override
+                    public Observable<T> call(Throwable throwable) {
+                        return Observable.empty();
+                    }
+                });
+            }
+        })).toList());
     }
 
     /**
@@ -221,7 +254,12 @@ public class Promise<T> {
      * @param func The function supplying the promise when the source promise is rejected.
      */
     public Promise<T> onErrorReturn(final Func1<Throwable, Promise<T>> func) {
-        return new Promise<>(this.observable.onErrorResumeNext(throwable -> func.call(throwable).observable));
+        return new Promise<>(this.observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
+            @Override
+            public Observable<T> call(Throwable throwable) {
+                return func.call(throwable).observable;
+            }
+        }));
     }
 
     /**
@@ -236,7 +274,12 @@ public class Promise<T> {
      * Maps the result of this promise to a promise for a result of type U, and flattens that to be a single promise for U.
      */
     public <U> Promise<U> flatMap(final Func1<T, Promise<U>> func) {
-        return new Promise<>(this.observable.flatMap(value -> func.call(value).observable));
+        return new Promise<>(this.observable.flatMap(new Func1<T, Observable<U>>() {
+            @Override
+            public Observable<U> call(T value) {
+                return func.call(value).observable;
+            }
+        }));
     }
 
     /**
@@ -244,7 +287,12 @@ public class Promise<T> {
      * @return Subscription so you can unsubscribe
      */
     public Subscription then(final Action1<T> fulfilmentCallback) {
-        return this.observable.subscribe(fulfilmentCallback, throwable -> {});
+        return this.observable.subscribe(fulfilmentCallback, new Action1<Throwable>() {
+            @Override
+            public void call(Throwable throwable) {
+                // Ignore error
+            }
+        });
     }
 
     /**
