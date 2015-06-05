@@ -3,10 +3,7 @@ package com.q42.rxpromise;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
-import rx.Subscription;
 import rx.exceptions.CompositeException;
-import rx.functions.Action0;
-import rx.functions.Action1;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -148,32 +145,21 @@ public class PromiseTest {
                 Matchers.<String>iterableWithSize(0));
     }
 
-    @Test
-    public void testCancel() throws InterruptedException {
+    @Test(expected = PromiseCancelledException.class)
+    public void testCancelPromiseCancelledException() throws InterruptedException {
         Promise<String> a = succes("a", 400);
-        then(a, "a");
-        Thread.sleep(200);
-        a.cancelAll();
-        Thread.sleep(4000);
+        Thread.sleep(100);
+        a.cancel();
+        a.blocking();
     }
 
-    private <T> Subscription then(Promise<T> a, final String token) {
-        return a.then(new Action1<T>() {
-            @Override
-            public void call(T s) {
-                l(token + " - " + s);
-            }
-        }, new Action1<Throwable>() {
-            @Override
-            public void call(Throwable throwable) {
-                l(token + " - " + throwable.toString());
-            }
-        }, new Action0() {
-            @Override
-            public void call() {
-                l(token + " - finally");
-            }
-        });
+    @Test
+    public void testCancelFulfilled() throws InterruptedException {
+        Promise<String> a = succes("a", 400);
+        Thread.sleep(500);
+        a.cancel();
+        assertThat(a.blocking(), is("a"));
+        assertThat(a.getState(), is(PromiseState.FULFILLED));
     }
 
     private void testCompositeException(int count, Promise<?> promise) {
