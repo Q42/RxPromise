@@ -7,38 +7,50 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Created by thijs on 04-06-15.
+ * A builder to create a {@link PromiseObserver} with some convenience methods, use with {@link Promise#then(PromiseObserverBuilder)}
  */
 public class PromiseObserverBuilder<T> {
     private final List<Action1<T>> successHandlers = new ArrayList<>(4);
     private final List<Action0> finallyHandlers = new ArrayList<>(4);
     private final List<RejectedHandler> errorHandlers = new ArrayList<>(4);
 
-    public static <T> PromiseObserverBuilder<T> promiseObserver() {
-        return new PromiseObserverBuilder<>();
-    }
-
+    /**
+     * Add a callback for when the {@link Promise} is fulfilled
+     */
     public PromiseObserverBuilder<T> success(Action1<T> success) {
         this.successHandlers.add(success);
         return this;
     }
 
+    /**
+     * Add a callback for when the {@link Promise} is rejected
+     */
     public PromiseObserverBuilder<T> error(Action1<Throwable> error) {
         this.errorHandlers.add(new RejectedHandler(Throwable.class, error));
         return this;
     }
 
+    /**
+     * Add a callback for when the {@link Promise} is rejected
+     * @param throwableClass The exception class (or subclasses) you want to attach the error callback to
+     */
     @SuppressWarnings("unchecked")
     public <E extends Throwable> PromiseObserverBuilder<T> error(Class<E> throwableClass, Action1<E> error) {
         this.errorHandlers.add(new RejectedHandler(throwableClass, (Action1<Throwable>) error));
         return this;
     }
 
+    /**
+     * Add a callback for when the {@link Promise} is either fulfilled or rejected
+     */
     public PromiseObserverBuilder<T> finallyDo(Action0 finallyDo) {
         this.finallyHandlers.add(finallyDo);
         return this;
     }
 
+    /**
+     * Build the {@link PromiseObserver}
+     */
     public PromiseObserver<T> build() {
         return new PromiseObserver<T>() {
             @Override
@@ -66,7 +78,7 @@ public class PromiseObserverBuilder<T> {
         };
     }
 
-    class RejectedHandler {
+    private class RejectedHandler {
         private final Class<? extends Throwable> throwableClass;
         private final Action1<Throwable> action;
 
