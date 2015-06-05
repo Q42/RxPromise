@@ -67,6 +67,16 @@ Promise<String> d = ...;
 List<String> somePromise = Promise.some(2, a, b, c, d);
 somePromise.then(System.out::println) // [a, c]
 ```
+## Cancellation
+Promises can be cancelled, you can either cancel a single promise or cancel _all_ promises in a chain all the way up to it's origin. When a promise was already successfully fulfilled cancellation has no effect.
+```java
+Promise<String> a = Promise.async(() -> longOp());
+Promise<String> b = a.flatMap(s -> otherLongOp());
+
+b.cancel(); // Only cancels b and otherLongOp
+b.cancelAll(); // Cancels the entire chain: a, b and otherLongOp and longOp
+a.cancelAll(); // The same as b.cancelAll(); cancels the entire chain: a, b and otherLongOp and longOp
+```
 
 ## Threads
 You can (globally) specify the thread callback should be scheduled on.

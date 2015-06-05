@@ -45,9 +45,9 @@ public class Promise<T> {
 
         this.originalSubscription = observable
                 .single()
+                .doOnUnsubscribe(cancelSubjectIfPending(subject))
                 .doOnError(changeStateToRejected())
                 .doOnCompleted(changeStateToFulfilled())
-                .doOnUnsubscribe(cancelSubjectIfPending(subject))
                 .subscribe(subject);
 
         this.allSubscriptions = allSubscriptions;
@@ -442,14 +442,14 @@ public class Promise<T> {
     }
 
     /**
-     * Cancel *all* promises in the chain
+     * Cancel *all* promises in the chain, all the way up to it's origin and all it's descendants. If any of the promises in the chain had already been fulfilled, cancellation has no effect.
      */
     public void cancelAll() {
         allSubscriptions.unsubscribe();
     }
 
     /**
-     * Cancel only *this* promises
+     * Cancel only *this* promises. If the promise has already been fulfilled cancellation has no effect.
      */
     public void cancel() {
         originalSubscription.unsubscribe();
