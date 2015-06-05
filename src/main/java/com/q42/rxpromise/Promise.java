@@ -286,16 +286,35 @@ public class Promise<T> {
      * Attach callbacks for when the promise gets fulfilled or rejected.
      * @return Subscription so you can unsubscribe
      */
-    public Subscription then(final ObserverBuilder<T> builder) {
-        return this.observable.subscribe(builder.build());
+    public Subscription then(final PromiseObserverBuilder<T> builder) {
+        return then(builder.build());
     }
 
     /**
      * Attach callbacks for when the promise gets fulfilled or rejected.
      * @return Subscription so you can unsubscribe
      */
-    public Subscription then(final Observer<T> observer) {
-        return this.observable.subscribe(observer);
+    public Subscription then(final PromiseObserver<T> observer) {
+        return this.observable.subscribe(new Observer<T>() {
+            @Override
+            public void onCompleted() {
+                observer.onFinally();
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                try {
+                    observer.onRejected(e);
+                } finally {
+                    observer.onFinally();
+                }
+            }
+
+            @Override
+            public void onNext(T t) {
+                observer.onFulfilled(t);
+            }
+        });
     }
 
     /**
