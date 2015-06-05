@@ -1,2 +1,4 @@
 .idea
 rxjava-promise.iml
+.gradle
+build
