@@ -4,11 +4,14 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 import rx.exceptions.CompositeException;
+import rx.functions.Action0;
+import rx.functions.Action1;
 
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
@@ -143,6 +146,107 @@ public class PromiseTest {
 
         assertThat(Promise.any(error("a", 500), error("b", 400), error("c", 200), error("d", 300), error("e", 0)).blocking(),
                 Matchers.<String>iterableWithSize(0));
+    }
+
+    @Test
+    public void testBuilder() {
+        final AtomicBoolean success1 = new AtomicBoolean(false);
+        final AtomicBoolean success2 = new AtomicBoolean(false);
+        final AtomicBoolean finally1 = new AtomicBoolean(false);
+        final AtomicBoolean finally2 = new AtomicBoolean(false);
+        final AtomicBoolean error = new AtomicBoolean(false);
+
+        Promise<String> a = succes("a", 200);
+        a.then(new PromiseObserverBuilder<String>()
+                .success(new Action1<String>() {
+                    @Override
+                    public void call(String s) {
+                        success1.set(true);
+                    }
+                }).success(new Action1<String>() {
+                    @Override
+                    public void call(String s) {
+                        success2.set(true);
+                    }
+                }).finallyDo(new Action0() {
+                    @Override
+                    public void call() {
+                        finally1.set(true);
+                    }
+                }).finallyDo(new Action0() {
+                    @Override
+                    public void call() {
+                        finally2.set(true);
+                    }
+                }).error(new Action1<Throwable>() {
+                    @Override
+                    public void call(Throwable throwable) {
+                        error.set(true);
+                    }
+                }));
+
+        a.blocking();
+
+        assertThat(success1.get(), is(true));
+        assertThat(success2.get(), is(true));
+        assertThat(finally1.get(), is(true));
+        assertThat(finally2.get(), is(true));
+        assertThat(error.get(), is(false));
+    }
+
+    @Test
+    public void testBuilderWithErrors() {
+        final AtomicBoolean success1 = new AtomicBoolean(false);
+        final AtomicBoolean finally1 = new AtomicBoolean(false);
+        final AtomicBoolean error1 = new AtomicBoolean(false);
+        final AtomicBoolean error2 = new AtomicBoolean(false);
+        final AtomicBoolean error3 = new AtomicBoolean(false);
+        final AtomicBoolean error4 = new AtomicBoolean(false);
+
+        Promise<String> a = error(new IllegalArgumentException(), 200);
+        a.then(new PromiseObserverBuilder<String>()
+                .success(new Action1<String>() {
+                    @Override
+                    public void call(String s) {
+                        success1.set(true);
+                    }
+                }).finallyDo(new Action0() {
+                    @Override
+                    public void call() {
+                        finally1.set(true);
+                    }
+                }).error(new Action1<Throwable>() {
+                    @Override
+                    public void call(Throwable throwable) {
+                        error1.set(true);
+                    }
+                }).error(new Action1<Throwable>() {
+                    @Override
+                    public void call(Throwable throwable) {
+                        error2.set(true);
+                    }
+                }).error(IllegalArgumentException.class, new Action1<IllegalArgumentException>() {
+                    @Override
+                    public void call(IllegalArgumentException throwable) {
+                        error3.set(true);
+                    }
+                }).error(IndexOutOfBoundsException.class, new Action1<IndexOutOfBoundsException>() {
+                    @Override
+                    public void call(IndexOutOfBoundsException throwable) {
+                        error4.set(true);
+                    }
+                }));
+
+        try {
+            a.blocking();
+        } catch (IllegalArgumentException e) {}
+
+        assertThat(success1.get(), is(false));
+        assertThat(finally1.get(), is(true));
+        assertThat(error1.get(), is(true));
+        assertThat(error2.get(), is(true));
+        assertThat(error3.get(), is(true));
+        assertThat(error4.get(), is(false));
     }
 
     @Test(expected = PromiseCancelledException.class)
