@@ -1,9 +1,17 @@
 package com.q42.rxpromise;
 
+import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.junit.Test;
+import rx.Subscription;
 import rx.exceptions.CompositeException;
+import rx.functions.Action0;
+import rx.functions.Action1;
 
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
@@ -13,10 +21,37 @@ import static org.junit.Assert.fail;
  * Created by thijs on 02-06-15.
  */
 public class PromiseTest {
+    private final HashMap<String, Long> lastStartTimes = new HashMap<>();
+
+    @Before
+    public void before() {
+        lastStartTimes.clear();
+    }
+
+    @Test
+    public void testAllConcurrent() {
+        Promise.all(succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
+        testAllValuesConcurrent();
+    }
+
+    @Test
+    public void testSomeConcurrent() {
+        Promise.some(4, succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
+        testAllValuesConcurrent();
+    }
+
+    @Test
+    public void testAnyConcurrent() {
+        Promise.any(succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
+        testAllValuesConcurrent();
+    }
+
     @Test
     public void testAll() {
         List<String> result = Promise.all(succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
         assertThat(result, contains("a", "b", "c", "d", "e"));
+
+        assertThat(Promise.all().blocking(), iterableWithSize(0));
 
         try {
             Promise.all(error(new TestException(), 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
@@ -67,7 +102,7 @@ public class PromiseTest {
                 contains("c"));
 
         assertThat(Promise.some(0, error("a", 500), error("b", 400), succes("c", 200), error("d", 300), error("e", 0)).blocking(),
-                iterableWithSize(0));
+                Matchers.<String>iterableWithSize(0));
 
         try {
             Promise.some(3, error(new TestException(), 50), error("b", 100), error("c", 150)).blocking();
@@ -110,7 +145,35 @@ public class PromiseTest {
                 contains("a"));
 
         assertThat(Promise.any(error("a", 500), error("b", 400), error("c", 200), error("d", 300), error("e", 0)).blocking(),
-                iterableWithSize(0));
+                Matchers.<String>iterableWithSize(0));
+    }
+
+    @Test
+    public void testCancel() throws InterruptedException {
+        Promise<String> a = succes("a", 400);
+        then(a, "a");
+        Thread.sleep(200);
+        a.cancelAll();
+        Thread.sleep(4000);
+    }
+
+    private <T> Subscription then(Promise<T> a, final String token) {
+        return a.then(new Action1<T>() {
+            @Override
+            public void call(T s) {
+                l(token + " - " + s);
+            }
+        }, new Action1<Throwable>() {
+            @Override
+            public void call(Throwable throwable) {
+                l(token + " - " + throwable.toString());
+            }
+        }, new Action0() {
+            @Override
+            public void call() {
+                l(token + " - finally");
+            }
+        });
     }
 
     private void testCompositeException(int count, Promise<?> promise) {
@@ -119,26 +182,50 @@ public class PromiseTest {
             fail();
         } catch (TooManyErrorsException e) {
             assertThat(e.getCause(), is(instanceOf(CompositeException.class)));
-            assertThat(((CompositeException) e.getCause()).getExceptions(), iterableWithSize(count));
+            assertThat(((CompositeException) e.getCause()).getExceptions(), Matchers.<Throwable>iterableWithSize(count));
         }
     }
 
-    private <T> Promise<T> succes(T value, long sleep) {
-        return Promise.async(() -> {
-            Thread.sleep(sleep);
-            return value;
+    private Promise<String> succes(final String value, final long sleep) {
+        return Promise.async(new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                l("Crunching " + value + "...");
+                lastStartTimes.put(value, System.currentTimeMillis());
+                Thread.sleep(sleep);
+                return value;
+            }
         });
     }
 
-    private <T> Promise<T> error(String errorMessage, long sleep) {
+    private Promise<String> error(String errorMessage, long sleep) {
         return error(new Exception(errorMessage), sleep);
     }
 
-    private <T> Promise<T> error(Exception t, long sleep) {
-        return Promise.async(() -> {
-            Thread.sleep(sleep);
-            throw t;
+    private Promise<String> error(final Exception t, final long sleep) {
+        return Promise.async(new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                l("Crunching " + t.getClass().getSimpleName() + "...");
+                Thread.sleep(sleep);
+                throw t;
+            }
         });
+    }
+
+    private void testAllValuesConcurrent() {
+        testConcurrent(lastStartTimes.keySet());
+    }
+
+    private void testConcurrent(Iterable<String> values) {
+        long now = System.currentTimeMillis();
+        for (String value : values) {
+            assertThat(lastStartTimes.get(value), Matchers.lessThanOrEqualTo(now + 50));
+        }
+    }
+
+    public static void l(Object s) {
+        System.out.printf("%s - %s - %s%n", new Date().toString(), Thread.currentThread().toString(), String.valueOf(s));
     }
 
     public class TestException extends Exception {}
