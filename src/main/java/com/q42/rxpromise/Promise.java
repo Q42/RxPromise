@@ -34,9 +34,8 @@ public class Promise<T> {
 
     private Promise(final Observable<T> observable) {
         final ReplaySubject<T> subject = ReplaySubject.create(1);
-
-        applyObserveOnScheduler(observable.single(), DEFAULT_CALLBACKS_SCHEDULER).subscribe(subject);
-        this.observable = subject;
+        observable.single().subscribe(subject);
+        this.observable = applyObserveOnScheduler(subject, DEFAULT_CALLBACKS_SCHEDULER);
     }
 
     /**

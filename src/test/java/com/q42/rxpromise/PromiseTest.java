@@ -7,9 +7,13 @@ import rx.exceptions.CompositeException;
 import rx.functions.Action0;
 import rx.functions.Action1;
 import rx.functions.Func1;
+import rx.schedulers.Schedulers;
 
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.*;
@@ -25,6 +29,7 @@ public class PromiseTest {
 
     @Before
     public void before() {
+        Promise.DEFAULT_CALLBACKS_SCHEDULER = null;
         lastStartTimes.clear();
         computed.clear();
     }
@@ -68,6 +73,32 @@ public class PromiseTest {
             assertThat(e.getCause(), is(instanceOf(Exception.class)));
             assertThat(e.getCause().getMessage(), is("e"));
         }
+    }
+
+    @Test
+    public void testCallbacksOn() throws InterruptedException {
+        final ExecutorService executorService = Executors.newSingleThreadExecutor(new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                return new Thread(r, "singleTestThread");
+            }
+        });
+
+        Promise.DEFAULT_CALLBACKS_SCHEDULER = Schedulers.from(executorService);
+        final Map<String, Thread> callbackThread = new HashMap<>();
+        succes("a", 300).then(new Action1<String>() {
+            @Override
+            public void call(String s) {
+                l(s);
+                callbackThread.put(s, Thread.currentThread());
+            }
+        }, printStackTraceAction());
+
+        Thread.sleep(400);
+
+        assertThat(callbackThread.get("a").getName(), is("singleTestThread"));
+
+        executorService.shutdown();
     }
 
     @Test
