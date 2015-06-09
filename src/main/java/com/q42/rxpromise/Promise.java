@@ -242,6 +242,39 @@ public class Promise<T> {
     }
 
     /**
+     * Returns a promise that transforms into another promise when the source promise is rejected.
+     * @param exceptionClass The type of exception to catch, if the {@link Throwable} is not an instance of this class the returned promise will still be rejected.
+     * @param func The function supplying the promise when the source promise is rejected.
+     */
+    public <E extends Throwable> Promise<T> onErrorReturn(final Class<E> exceptionClass, final Func1<E, Promise<T>> func) {
+        return new Promise<>(this.observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public Observable<T> call(Throwable throwable) {
+                if (exceptionClass.isAssignableFrom(throwable.getClass())) {
+                    return func.call((E) throwable).observable;
+                }
+
+                return Observable.error(throwable);
+            }
+        }));
+    }
+
+    /**
+     * Returns a promise that transforms into another promise when the source promise is rejected.
+     * @param exceptionClass The type of exception to catch, if the {@link Throwable} is not an instance of this class the returned promise will still be rejected.
+     * @param other The promise to transform into when the source promise is rejected.
+     */
+    public <E extends Throwable> Promise<T> onErrorReturn(final Class<E> exceptionClass, final Promise<T> other) {
+        return onErrorReturn(exceptionClass, new Func1<E, Promise<T>>() {
+            @Override
+            public Promise<T> call(E throwable) {
+                return other;
+            }
+        });
+    }
+
+    /**
      * Maps the result of this promise to a promise for a result of type U, and flattens that to be a single promise for U.
      */
     public <U> Promise<U> flatMap(final Func1<T, Promise<U>> func) {

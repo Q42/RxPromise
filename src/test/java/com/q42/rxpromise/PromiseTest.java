@@ -6,9 +6,9 @@ import org.junit.Test;
 import rx.exceptions.CompositeException;
 import rx.functions.Action0;
 import rx.functions.Action1;
+import rx.functions.Func1;
 
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -21,10 +21,12 @@ import static org.junit.Assert.fail;
  */
 public class PromiseTest {
     private final HashMap<String, Long> lastStartTimes = new HashMap<>();
+    private final List<String> computed = new ArrayList<>();
 
     @Before
     public void before() {
         lastStartTimes.clear();
+        computed.clear();
     }
 
     @Test
@@ -194,6 +196,53 @@ public class PromiseTest {
     }
 
     @Test
+    public void testOnErrorReturn() {
+        String a = error(new IllegalArgumentException(), 0).onErrorReturn(Promise.just("a")).blocking();
+        assertThat(a, is("a"));
+
+        String b = error(new IllegalArgumentException(), 100).onErrorReturn(new Func1<Throwable, Promise<String>>() {
+            @Override
+            public Promise<String> call(Throwable throwable) {
+                return succes("b", 100);
+            }
+        }).blocking();
+
+        assertThat(b, is("b"));
+
+
+        String c = error(new TestException(), 0).onErrorReturn(TestException.class, Promise.just("c")).blocking();
+        assertThat(c, is("c"));
+
+        String d = error(new TestRuntimeException(), 100).onErrorReturn(TestRuntimeException.class, new Func1<TestRuntimeException, Promise<String>>() {
+            @Override
+            public Promise<String> call(TestRuntimeException e) {
+                return succes("d", 100);
+            }
+        }).blocking();
+        assertThat(d, is("d"));
+
+
+        try {
+            error(new TestRuntimeException(), 0).onErrorReturn(IndexOutOfBoundsException.class, Promise.just("d")).blocking();
+            fail("Expected " + TestRuntimeException.class);
+        } catch (Throwable e) {
+            assertThat(e, is(instanceOf(TestRuntimeException.class)));
+        }
+
+        try {
+            error(new TestException(), 0).onErrorReturn(IndexOutOfBoundsException.class, new Func1<IndexOutOfBoundsException, Promise<String>>() {
+                @Override
+                public Promise<String> call(IndexOutOfBoundsException throwable) {
+                    return succes("b", 100);
+                }
+            }).blocking();
+            fail("Expected " + TestException.class);
+        } catch (Throwable e) {
+            assertThat(e.getCause(), is(instanceOf(TestException.class)));
+        }
+    }
+
+    @Test
     public void testBuilderWithErrors() {
         final AtomicBoolean success1 = new AtomicBoolean(false);
         final AtomicBoolean finally1 = new AtomicBoolean(false);
@@ -248,6 +297,27 @@ public class PromiseTest {
         assertThat(error4.get(), is(false));
     }
 
+    @Test
+    public void testComputedOnce() throws InterruptedException {
+        Promise<String> a = succes("a", 400);
+        a.then(logAction(), printStackTraceAction());
+        a.then(logAction(), printStackTraceAction());
+        Thread.sleep(100);
+        a.then(logAction(), printStackTraceAction());
+        a.then(logAction(), printStackTraceAction());
+        Thread.sleep(400);
+        a.then(logAction(), printStackTraceAction());
+        a.then(logAction(), printStackTraceAction());
+        assertThat(computed, contains("a"));
+    }
+
+    @Test
+    public void testPromiseIsEager() throws InterruptedException {
+        Promise<String> a = succes("a", 50);
+        Thread.sleep(100);
+        assertThat(computed, contains("a"));
+    }
+
     private void testCompositeException(int count, Promise<?> promise) {
         try {
             promise.blocking();
@@ -262,8 +332,15 @@ public class PromiseTest {
         return Promise.async(new Callable<String>() {
             @Override
             public String call() throws Exception {
+                l("Crunching " + value + "...");
                 lastStartTimes.put(value, System.currentTimeMillis());
-                Thread.sleep(sleep);
+                try {
+                    Thread.sleep(sleep);
+                } catch (InterruptedException e) {
+                    l("Error in " + value + " " + e.toString());
+                    throw e;
+                }
+                computed.add(value);
                 return value;
             }
         });
@@ -277,6 +354,7 @@ public class PromiseTest {
         return Promise.async(new Callable<String>() {
             @Override
             public String call() throws Exception {
+                l("Crunching " + t.getClass().getSimpleName() + "...");
                 Thread.sleep(sleep);
                 throw t;
             }
@@ -294,5 +372,28 @@ public class PromiseTest {
         }
     }
 
+    public static void l(Object s) {
+        System.out.printf("%s - %s - %s%n", new Date().toString(), Thread.currentThread().toString(), String.valueOf(s));
+    }
+
     public class TestException extends Exception {}
+    public class TestRuntimeException extends RuntimeException {}
+
+    private Action1<Throwable> printStackTraceAction() {
+        return new Action1<Throwable>() {
+            @Override
+            public void call(Throwable throwable) {
+                throwable.printStackTrace();
+            }
+        };
+    }
+
+    private Action1<String> logAction() {
+        return new Action1<String>() {
+            @Override
+            public void call(String s) {
+                l(s);
+            }
+        };
+    }
 }
