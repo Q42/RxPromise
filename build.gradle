@@ -3,7 +3,7 @@ apply plugin: 'maven'
 
 group = 'com.q42.rxpromise'
 
-sourceCompatibility = 1.7
+sourceCompatibility = 1.6
 version = '1.0'
 
 repositories {
