@@ -1,4 +1,5 @@
-# RxPromise
+# RxPromise &nbsp; [![Build Status](https://travis-ci.org/Q42/RxPromise.png)](https://travis-ci.org/Q42/RxPromise) 
+
 A Promise wrapper around RxJava's Observable. A promise represents the eventual result of an asynchronous operation.
 
 [JavaDoc](https://jitpack.io/com/github/Q42/RxPromise/1.0/javadoc/)
