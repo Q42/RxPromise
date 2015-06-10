@@ -44,7 +44,7 @@ public class Promise<T> {
      * {@code IllegalArgumentException} or {@code NoSuchElementException} respectively.
      */
     public static <T> Promise<T> promise(Observable<T> observable) {
-        return new Promise<>(observable);
+        return new Promise<T>(observable);
     }
 
     /**
@@ -154,7 +154,7 @@ public class Promise<T> {
             return just(Collections.<T>emptyList());
         }
 
-        final List<Throwable> errors = new ArrayList<>(Math.min(count, 16));
+        final List<Throwable> errors = new ArrayList<Throwable>(Math.min(count, 16));
         final List<Observable<T>> observables = coerceToList(promises, Promise.<T>coerceToObservable());
 
         if (observables.size() < count) {
@@ -209,14 +209,14 @@ public class Promise<T> {
      * Modifies an Promise to perform its callbacks on a specified {@link Scheduler}
      */
     public Promise<T> callbacksOn(Scheduler scheduler) {
-        return new Promise<>(this.observable.observeOn(scheduler));
+        return new Promise<T>(this.observable.observeOn(scheduler));
     }
 
     /**
      * Maps this promise to a promise of type U.
      */
     public <U> Promise<U> map(Func1<T, U> func) {
-        return new Promise<>(this.observable.map(func));
+        return new Promise<U>(this.observable.map(func));
     }
 
     /**
@@ -224,7 +224,7 @@ public class Promise<T> {
      * @param func The function supplying the promise when the source promise is rejected.
      */
     public Promise<T> onErrorReturn(final Func1<Throwable, Promise<T>> func) {
-        return new Promise<>(this.observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
+        return new Promise<T>(this.observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
             @Override
             public Observable<T> call(Throwable throwable) {
                 return func.call(throwable).observable;
@@ -237,7 +237,7 @@ public class Promise<T> {
      * @param other The promise to transform into when the source promise is rejected.
      */
     public Promise<T> onErrorReturn(final Promise<T> other) {
-        return new Promise<>(this.observable.onErrorResumeNext(other.observable));
+        return new Promise<T>(this.observable.onErrorResumeNext(other.observable));
     }
 
     /**
@@ -246,7 +246,7 @@ public class Promise<T> {
      * @param func The function supplying the promise when the source promise is rejected.
      */
     public <E extends Throwable> Promise<T> onErrorReturn(final Class<E> exceptionClass, final Func1<E, Promise<T>> func) {
-        return new Promise<>(this.observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
+        return new Promise<T>(this.observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
             @Override
             @SuppressWarnings("unchecked")
             public Observable<T> call(Throwable throwable) {
@@ -277,7 +277,7 @@ public class Promise<T> {
      * Maps the result of this promise to a promise for a result of type U, and flattens that to be a single promise for U.
      */
     public <U> Promise<U> flatMap(final Func1<T, Promise<U>> func) {
-        return new Promise<>(this.observable.flatMap(new Func1<T, Observable<U>>() {
+        return new Promise<U>(this.observable.flatMap(new Func1<T, Observable<U>>() {
             @Override
             public Observable<U> call(T value) {
                 return func.call(value).observable;
@@ -286,7 +286,44 @@ public class Promise<T> {
     }
 
     /**
-     * Attach callbacks for when the promise gets fulfilled. If the promise is rejected, the error is ignored.
+     * Attach a callback for when the promise is fulfilled. This callback cannot be unsubscribed.
+     */
+    public Promise<T> onSuccess(Action1<T> success) {
+        return new Promise<T>(this.observable.doOnNext(success));
+    }
+
+    /**
+     * Attach a callback for when the promise is rejected. This callback cannot be unsubscribed.
+     */
+    public Promise<T> onError(Action1<Throwable> error) {
+        return new Promise<T>(this.observable.doOnError(error));
+    }
+
+    /**
+     * Attach a callback for when the promise is rejected. This callback cannot be unsubscribed.
+     * @param throwableClass The exception class (or subclasses) you want to attach the error callback to
+     */
+    @SuppressWarnings("unchecked")
+    public <E extends Throwable> Promise<T> onError(final Class<E> throwableClass, final Action1<E> error) {
+        return new Promise<T>(this.observable.doOnError(new Action1<Throwable>() {
+            @Override
+            public void call(Throwable throwable) {
+                if (throwableClass.isAssignableFrom(throwable.getClass())) {
+                    error.call((E) throwable);
+                }
+            }
+        }));
+    }
+
+    /**
+     * Add a callback for when the promise is either fulfilled or rejected. This callback cannot be unsubscribed.
+     */
+    public Promise<T> onFinally(Action0 finallyDo) {
+        return new Promise<T>(this.observable.doOnTerminate(finallyDo));
+    }
+
+    /**
+     * Attach callbacks for when the promise is fulfilled.
      * @return Subscription so you can unsubscribe
      */
     public Subscription then(final Action1<T> fulfilmentCallback) {
@@ -299,7 +336,7 @@ public class Promise<T> {
     }
 
     /**
-     * Attach callbacks for when the promise gets fulfilled or rejected.
+     * Attach callbacks for when the promise is fulfilled or rejected.
      * @return Subscription so you can unsubscribe
      */
     public Subscription then(final Action1<T> fulfilmentCallback, final Action1<Throwable> rejectedCallback) {
@@ -307,7 +344,7 @@ public class Promise<T> {
     }
 
     /**
-     * Attach callbacks for when the promise gets fulfilled or rejected.
+     * Attach callbacks for when the promise is fulfilled, rejected and for when it's either fulfilled or rejected.
      * @return Subscription so you can unsubscribe
      */
     public Subscription then(final Action1<T> fulfilmentCallback, final Action1<Throwable> rejectedCallback, final Action0 onFinally) {
@@ -354,7 +391,7 @@ public class Promise<T> {
      * specified delay. Error notifications from the source promise are not delayed.
      */
     public Promise<T> delay(long delay, TimeUnit unit) {
-        return new Promise<>(observable.delay(delay, unit));
+        return new Promise<T>(observable.delay(delay, unit));
     }
 
     /**
@@ -363,7 +400,7 @@ public class Promise<T> {
      * the resulting promise is rejected with a {@code TimeoutException}.
      */
     public Promise<T> timeout(long timeout, TimeUnit timeUnit) {
-        return new Promise<>(observable.timeout(timeout, timeUnit));
+        return new Promise<T>(observable.timeout(timeout, timeUnit));
     }
 
     /**
@@ -372,7 +409,7 @@ public class Promise<T> {
      * the resulting promise transforms into a fallback Promise.
      */
     public Promise<T> timeout(long timeout, TimeUnit timeUnit, Promise<T> fallback) {
-        return new Promise<>(observable.timeout(timeout, timeUnit, fallback.observable));
+        return new Promise<T>(observable.timeout(timeout, timeUnit, fallback.observable));
     }
 
     /**

@@ -10,14 +10,14 @@ import java.util.List;
  * A builder to create a {@link PromiseObserver} with some convenience methods, use with {@link Promise#then(PromiseObserverBuilder)}
  */
 public class PromiseObserverBuilder<T> {
-    private final List<Action1<T>> successHandlers = new ArrayList<>(4);
-    private final List<Action0> finallyHandlers = new ArrayList<>(4);
-    private final List<RejectedHandler> errorHandlers = new ArrayList<>(4);
+    private final List<Action1<T>> successHandlers = new ArrayList<Action1<T>>(4);
+    private final List<Action0> finallyHandlers = new ArrayList<Action0>(4);
+    private final List<RejectedHandler> errorHandlers = new ArrayList<RejectedHandler>(4);
 
     /**
      * Add a callback for when the {@link Promise} is fulfilled
      */
-    public PromiseObserverBuilder<T> success(Action1<T> success) {
+    public PromiseObserverBuilder<T> onSuccess(Action1<T> success) {
         this.successHandlers.add(success);
         return this;
     }
@@ -25,7 +25,7 @@ public class PromiseObserverBuilder<T> {
     /**
      * Add a callback for when the {@link Promise} is rejected
      */
-    public PromiseObserverBuilder<T> error(Action1<Throwable> error) {
+    public PromiseObserverBuilder<T> onError(Action1<Throwable> error) {
         this.errorHandlers.add(new RejectedHandler(Throwable.class, error));
         return this;
     }
@@ -35,7 +35,7 @@ public class PromiseObserverBuilder<T> {
      * @param throwableClass The exception class (or subclasses) you want to attach the error callback to
      */
     @SuppressWarnings("unchecked")
-    public <E extends Throwable> PromiseObserverBuilder<T> error(Class<E> throwableClass, Action1<E> error) {
+    public <E extends Throwable> PromiseObserverBuilder<T> onError(Class<E> throwableClass, Action1<E> error) {
         this.errorHandlers.add(new RejectedHandler(throwableClass, (Action1<Throwable>) error));
         return this;
     }
@@ -43,7 +43,7 @@ public class PromiseObserverBuilder<T> {
     /**
      * Add a callback for when the {@link Promise} is either fulfilled or rejected
      */
-    public PromiseObserverBuilder<T> finallyDo(Action0 finallyDo) {
+    public PromiseObserverBuilder<T> onFinally(Action0 finallyDo) {
         this.finallyHandlers.add(finallyDo);
         return this;
     }

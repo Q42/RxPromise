@@ -24,8 +24,8 @@ import static org.junit.Assert.fail;
  * Created by thijs on 02-06-15.
  */
 public class PromiseTest {
-    private final HashMap<String, Long> lastStartTimes = new HashMap<>();
-    private final List<String> computed = new ArrayList<>();
+    private final HashMap<String, Long> lastStartTimes = new HashMap<String, Long>();
+    private final List<String> computed = new ArrayList<String>();
 
     @Before
     public void before() {
@@ -85,7 +85,7 @@ public class PromiseTest {
         });
 
         Promise.DEFAULT_CALLBACKS_SCHEDULER = Schedulers.from(executorService);
-        final Map<String, Thread> callbackThread = new HashMap<>();
+        final Map<String, Thread> callbackThread = new HashMap<String, Thread>();
         succes("a", 300).then(new Action1<String>() {
             @Override
             public void call(String s) {
@@ -134,7 +134,7 @@ public class PromiseTest {
                 contains("c"));
 
         assertThat(Promise.some(0, error("a", 500), error("b", 400), succes("c", 200), error("d", 300), error("e", 0)).blocking(),
-                Matchers.<String>iterableWithSize(0));
+                emptyIterable());
 
         try {
             Promise.some(3, error(new TestException(), 50), error("b", 100), error("c", 150)).blocking();
@@ -177,7 +177,7 @@ public class PromiseTest {
                 contains("a"));
 
         assertThat(Promise.any(error("a", 500), error("b", 400), error("c", 200), error("d", 300), error("e", 0)).blocking(),
-                Matchers.<String>iterableWithSize(0));
+                emptyIterable());
     }
 
     @Test
@@ -190,27 +190,27 @@ public class PromiseTest {
 
         Promise<String> a = succes("a", 200);
         a.then(new PromiseObserverBuilder<String>()
-                .success(new Action1<String>() {
+                .onSuccess(new Action1<String>() {
                     @Override
                     public void call(String s) {
                         success1.set(true);
                     }
-                }).success(new Action1<String>() {
+                }).onSuccess(new Action1<String>() {
                     @Override
                     public void call(String s) {
                         success2.set(true);
                     }
-                }).finallyDo(new Action0() {
+                }).onFinally(new Action0() {
                     @Override
                     public void call() {
                         finally1.set(true);
                     }
-                }).finallyDo(new Action0() {
+                }).onFinally(new Action0() {
                     @Override
                     public void call() {
                         finally2.set(true);
                     }
-                }).error(new Action1<Throwable>() {
+                }).onError(new Action1<Throwable>() {
                     @Override
                     public void call(Throwable throwable) {
                         error.set(true);
@@ -284,32 +284,32 @@ public class PromiseTest {
 
         Promise<String> a = error(new IllegalArgumentException(), 200);
         a.then(new PromiseObserverBuilder<String>()
-                .success(new Action1<String>() {
+                .onSuccess(new Action1<String>() {
                     @Override
                     public void call(String s) {
                         success1.set(true);
                     }
-                }).finallyDo(new Action0() {
+                }).onFinally(new Action0() {
                     @Override
                     public void call() {
                         finally1.set(true);
                     }
-                }).error(new Action1<Throwable>() {
+                }).onError(new Action1<Throwable>() {
                     @Override
                     public void call(Throwable throwable) {
                         error1.set(true);
                     }
-                }).error(new Action1<Throwable>() {
+                }).onError(new Action1<Throwable>() {
                     @Override
                     public void call(Throwable throwable) {
                         error2.set(true);
                     }
-                }).error(IllegalArgumentException.class, new Action1<IllegalArgumentException>() {
+                }).onError(IllegalArgumentException.class, new Action1<IllegalArgumentException>() {
                     @Override
                     public void call(IllegalArgumentException throwable) {
                         error3.set(true);
                     }
-                }).error(IndexOutOfBoundsException.class, new Action1<IndexOutOfBoundsException>() {
+                }).onError(IndexOutOfBoundsException.class, new Action1<IndexOutOfBoundsException>() {
                     @Override
                     public void call(IndexOutOfBoundsException throwable) {
                         error4.set(true);
@@ -347,6 +347,89 @@ public class PromiseTest {
         Promise<String> a = succes("a", 50);
         Thread.sleep(100);
         assertThat(computed, contains("a"));
+    }
+
+    @Test
+    public void tesOnSuccess() {
+        final List<String> invoked = new ArrayList<String>(1);
+        succes("a", 50).onSuccess(new Action1<String>() {
+            @Override
+            public void call(String s) {
+                invoked.add(s);
+            }
+        }).blocking();
+        assertThat(invoked, contains("a"));
+    }
+
+    @Test
+    public void tesOnFinally() {
+        final List<String> invoked = new ArrayList<String>(1);
+        succes("a", 50).onFinally(new Action0() {
+            @Override
+            public void call() {
+                invoked.add("a");
+            }
+        }).blocking();
+        assertThat(invoked, contains("a"));
+
+        try {
+            invoked.clear();
+            error(new TestRuntimeException(), 50).onFinally(new Action0() {
+                @Override
+                public void call() {
+                    invoked.add("a");
+                }
+            }).blocking();
+        } catch (TestRuntimeException e) {}
+        assertThat(invoked, contains("a"));
+    }
+
+    @Test
+    public void tesOnError() {
+        final List<String> invoked = new ArrayList<String>(1);
+        error(new TestException(), 50).onError(new Action1<Throwable>() {
+            @Override
+            public void call(Throwable throwable) {
+                invoked.add("TestException");
+            }
+        }).onErrorReturn(Promise.just("z")).blocking();
+        assertThat(invoked, contains("TestException"));
+
+        invoked.clear();
+        error(new TestException(), 50).onError(TestException.class, new Action1<TestException>() {
+            @Override
+            public void call(TestException throwable) {
+                invoked.add("TestException");
+            }
+        }).onErrorReturn(Promise.just("z")).blocking();
+        assertThat(invoked, contains("TestException"));
+
+        invoked.clear();
+        error(new TestRuntimeException(), 50).onError(TestRuntimeException.class, new Action1<TestRuntimeException>() {
+            @Override
+            public void call(TestRuntimeException throwable) {
+                invoked.add("TestRuntimeException");
+            }
+        }).onErrorReturn(Promise.just("z")).blocking();
+        assertThat(invoked, contains("TestRuntimeException"));
+
+        invoked.clear();
+        error(new TestException(), 50).onError(TestRuntimeException.class, new Action1<TestRuntimeException>() {
+            @Override
+            public void call(TestRuntimeException throwable) {
+                invoked.add("TestException");
+            }
+        }).onErrorReturn(Promise.just("z")).blocking();
+        assertThat(invoked, emptyIterable());
+
+        invoked.clear();
+        error(new TestRuntimeException(), 50).onError(TestException.class, new Action1<TestException>() {
+            @Override
+            public void call(TestException throwable) {
+                invoked.add("TestException");
+            }
+        }).onErrorReturn(Promise.just("z")).blocking();
+        assertThat(invoked, emptyIterable());
     }
 
     private void testCompositeException(int count, Promise<?> promise) {

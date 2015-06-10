@@ -18,7 +18,8 @@ See [https://jitpack.io/#Q42/RxPromise](https://jitpack.io/#Q42/RxPromise) for i
 Promise.async(Test::longRunningOperation)
         .map(integer -> integer * 10)
         .flatMap(Test::anotherLongRunningOperation)
-        .then(o -> doSomeThingWith(o));
+        .onError(SomeException.class, someException -> log(someException))
+        .onSuccess(o -> doSomeThingWith(o));
 ````
 
 ### Subscriptions
@@ -28,11 +29,11 @@ You can unsubscribe callbacks and subscribe again later on, resubscribing to the
 Promise<String> promise = Promise.async(Test::longRunningOperation);
 Subscription subscription = promise.then(System.out::println);
 
-// Unsubscribe, the callback will never be invoked
+// Unsubscribe, the callback 'System.out::println' will never be invoked
 subscription.unsubscribe();
 
-// Subscribe again
-promise.then(System.out::println);
+// Resubscribe
+promise.then(System.err::println);
 ```
 
 ### Multiple promises
