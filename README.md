@@ -7,6 +7,13 @@ A Promise wrapper around RxJava's Observable. A promise represents the eventual 
 ## Why?
 Why not just use [Observables](http://reactivex.io/RxJava/javadoc/rx/Observable.html) you ask? Well a Promise is easier to use when working with a single value (instead of a stream of values). Additionally, it has a consitent behaviour in terms of caching already fullfilled values.
 
+### Semantics
+This promise is eager and is always cached:
+- Eager: The promise will start fulfilling it's value as soon as it's created.
+- Cached: The value will be redeemed from it's origin only once. All calls will wait until the promise's value is successfully fulfilled or the promise is rejected with an exception. All subsequent calls will immediately get the already fulfilled value (or exception). 
+
+For example, if the promise is a future value from a HTTP API call, the API call will always be called once, regardless of the complexity of the promise chain.
+
 ## Compatibility
 This library is compatible with Java 6
 
