@@ -19,7 +19,27 @@ import static rx.Observable.combineLatest;
 import static rx.Observable.merge;
 
 /**
- * A promise wrapper around RxJava's {@link Observable}. For simplified handling of Observables that emit a single value.
+ * <p>
+ *    A promise wrapper around RxJava's {@link Observable}. For simplified handling of Observables that emit a single value.
+ *    A promise represents a future value (usually of an asynchronous operation).
+ * </p>
+ * <p>
+ *    <strong>Semantics</strong><br>
+ *    This promise is eager and is always cached:
+ * </p>
+ * <ul>
+ *     <li><strong>Eager:</strong> The promise will start fulfilling it's value as soon as it's created.</li>
+ *     <li><strong>Cached:</strong> The value will be redeemed from it's origin only once. All calls will wait until the promise is successfully fulfilled or rejected. All subsequent calls will immediately get the already fulfilled value (or exception).</li>
+ * </ul>
+ * <p>For example, if the promise is a future value from a HTTP API call, the API call will always be called once, regardless of the complexity of the promise chain.</p>
+ * <p><strong>Example:</strong></p>
+ * <pre>
+ * Promise.async(Test::longRunningOperation)
+ *         .map(integer -> integer * 10)
+ *         .flatMap(Test::anotherLongRunningOperation)
+ *         .onError(SomeException.class, someException -> log(someException))
+ *         .onSuccess(o -> doSomeThingWith(o));
+ * </pre>
  */
 public class Promise<T> {
     /**
@@ -78,7 +98,7 @@ public class Promise<T> {
      * @param future the source {@link Future}
      * @param scheduler the {@link Scheduler} to wait for the Future on.
      */
-    public static <T> Promise<T> from(Future<? extends T> future, Scheduler scheduler) {
+    public static <T> Promise<T> promise(Future<? extends T> future, Scheduler scheduler) {
         return new Promise<T>(Observable.from(future, scheduler));
     }
 
@@ -426,57 +446,57 @@ public class Promise<T> {
     /**
      * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
      */
-    public static <T1, T2, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, final Func2<T1, T2, R> zipFunction) {
-        return new Promise<R>(Observable.zip(p1.observable, p2.observable, zipFunction));
+    public static <T1, T2, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, final Func2<T1, T2, R> joinFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, joinFunction));
     }
 
     /**
      * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
      */
-    public static <T1, T2, T3, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, final Func3<T1, T2, T3, R> zipFunction) {
-        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, zipFunction));
+    public static <T1, T2, T3, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, final Func3<T1, T2, T3, R> joinFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, joinFunction));
     }
 
     /**
      * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
      */
-    public static <T1, T2, T3, T4, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, final Func4<T1, T2, T3, T4, R> zipFunction) {
-        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, zipFunction));
+    public static <T1, T2, T3, T4, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, final Func4<T1, T2, T3, T4, R> joinFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, joinFunction));
     }
 
     /**
      * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
      */
-    public static <T1, T2, T3, T4, T5, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, final Func5<T1, T2, T3, T4, T5, R> zipFunction) {
-        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, zipFunction));
+    public static <T1, T2, T3, T4, T5, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, final Func5<T1, T2, T3, T4, T5, R> joinFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, joinFunction));
     }
 
     /**
      * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
      */
-    public static <T1, T2, T3, T4, T5, T6, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, final Func6<T1, T2, T3, T4, T5, T6, R> zipFunction) {
-        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, zipFunction));
+    public static <T1, T2, T3, T4, T5, T6, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, final Func6<T1, T2, T3, T4, T5, T6, R> joinFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, joinFunction));
     }
 
     /**
      * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
      */
-    public static <T1, T2, T3, T4, T5, T6, T7, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, final Func7<T1, T2, T3, T4, T5, T6, T7, R> zipFunction) {
-        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, zipFunction));
+    public static <T1, T2, T3, T4, T5, T6, T7, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, final Func7<T1, T2, T3, T4, T5, T6, T7, R> joinFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, joinFunction));
     }
 
     /**
      * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
      */
-    public static <T1, T2, T3, T4, T5, T6, T7, T8, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, Promise<T8> p8, final Func8<T1, T2, T3, T4, T5, T6, T7, T8, R> zipFunction) {
-        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, p8.observable, zipFunction));
+    public static <T1, T2, T3, T4, T5, T6, T7, T8, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, Promise<T8> p8, final Func8<T1, T2, T3, T4, T5, T6, T7, T8, R> joinFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, p8.observable, joinFunction));
     }
 
     /**
      * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
      */
-    public static <T1, T2, T3, T4, T5, T6, T7, T8, T9, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, Promise<T8> p8, Promise<T9> p9, final Func9<T1, T2, T3, T4, T5, T6, T7, T8, T9, R> zipFunction) {
-        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, p8.observable, p9.observable, zipFunction));
+    public static <T1, T2, T3, T4, T5, T6, T7, T8, T9, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, Promise<T8> p8, Promise<T9> p9, final Func9<T1, T2, T3, T4, T5, T6, T7, T8, T9, R> joinFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, p8.observable, p9.observable, joinFunction));
     }
 
     /**
