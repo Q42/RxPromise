@@ -2,7 +2,7 @@
 
 A Promise wrapper around RxJava's Observable. A promise represents a future value (usually of an asynchronous operation).
 
-<a href="https://jitpack.io/com/github/Q42/RxPromise/1.2.1/javadoc/" target="_blank">JavaDoc</a>
+<a href="https://jitpack.io/com/github/Q42/RxPromise/1.3/javadoc/" target="_blank">JavaDoc</a>
 
 ## Why?
 Why not just use [Observables](http://reactivex.io/RxJava/javadoc/rx/Observable.html) you ask? Well a Promise is easier to use when working with a single value (instead of a stream of values). Additionally, it has a consitent behaviour in terms of caching already fullfilled values.
@@ -82,7 +82,8 @@ Combine values of promises with different types
 Promise<String> p1 = ...;
 Promise<Integer> p2 = ...;
 Promise<Boolean> p3 = ...;
-Promise.join(p1, p2, p3, (s, i, b) -> System.out.printf("%s, %d, %s%n", s, i, b)); // prints: a, 1, true
+Promise.join(p1, p2, p3, (s, i, b) -> System.out.printf("%s, %d, %s%n", s, i, b));
+// prints: a, 1, true
 ```
 
 ## Threads
