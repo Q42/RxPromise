@@ -53,7 +53,7 @@ Promise<String> b = ...;
 Promise<String> c = ...;
 Promise<String> d = ...;
 
-Promise.all(a, b, c, d).then(System.out::println); // [a, b, c, d]
+Promise.all(a, b, c, d).onSuccess(System.out::println); // prints:  [a, b, c, d]
 ```
 
 Wait for any promises to be fullfilled, promises that are rejected are ignored.
@@ -63,7 +63,7 @@ Promise<String> b = ...; // error
 Promise<String> c = ...;
 Promise<String> d = ...; // error
 
-Promise.any(a, b, c, d).then(System.out::println); // [a, c]
+Promise.any(a, b, c, d).onSuccess(System.out::println); // prints:  [a, c]
 ```
 
 Wait for a specific amount of promises to be fullfilled, promises that are rejected are ignored. If there are not enough fullfilled promises to be returned, the `somePromise` is rejected.
@@ -74,7 +74,15 @@ Promise<String> c = ...;
 Promise<String> d = ...;
 
 List<String> somePromise = Promise.some(2, a, b, c, d);
-somePromise.then(System.out::println) // [a, c]
+somePromise.onSuccess(System.out::println) // prints:  [a, c]
+```
+
+Combine values of promises with different types
+```java
+Promise<String> p1 = ...;
+Promise<Integer> p2 = ...;
+Promise<Boolean> p3 = ...;
+Promise.join(p1, p2, p3, (s, i, b) -> System.out.printf("%s, %d, %s%n", s, i, b)); // prints: a, 1, true
 ```
 
 ## Threads

@@ -7,6 +7,7 @@ import rx.exceptions.CompositeException;
 import rx.functions.Action0;
 import rx.functions.Action1;
 import rx.functions.Func1;
+import rx.functions.Func4;
 import rx.schedulers.Schedulers;
 
 import java.util.*;
@@ -37,19 +38,19 @@ public class PromiseTest {
     @Test
     public void testAllConcurrent() {
         Promise.all(succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
-        testAllValuesConcurrent();
+        assertAllValuesConcurrent();
     }
 
     @Test
     public void testSomeConcurrent() {
         Promise.some(4, succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
-        testAllValuesConcurrent();
+        assertAllValuesConcurrent();
     }
 
     @Test
     public void testAnyConcurrent() {
         Promise.any(succes("a", 500), succes("b", 400), succes("c", 200), succes("d", 300), succes("e", 0)).blocking();
-        testAllValuesConcurrent();
+        assertAllValuesConcurrent();
     }
 
     @Test
@@ -274,6 +275,25 @@ public class PromiseTest {
     }
 
     @Test
+    public void testOnSuccessAfterFulfillment() throws InterruptedException {
+        final Promise<String> a = succes("a", 400);
+        Thread.sleep(500);
+
+        final List<String> calls = new ArrayList<String>(1);
+
+        a.onSuccess(new Action1<String>() {
+            @Override
+            public void call(String s) {
+                calls.add(s);
+            }
+        });
+
+        Thread.sleep(100);
+
+        assertThat(calls, contains("a"));
+    }
+
+    @Test
     public void testBuilderWithErrors() {
         final AtomicBoolean success1 = new AtomicBoolean(false);
         final AtomicBoolean finally1 = new AtomicBoolean(false);
@@ -347,6 +367,51 @@ public class PromiseTest {
         Promise<String> a = succes("a", 50);
         Thread.sleep(100);
         assertThat(computed, contains("a"));
+    }
+
+    @Test
+    public void testJoin() throws InterruptedException {
+        final Promise<String> p = Promise.join(succes("a", 400), succes("b", 500), Promise.just(1), Promise.just(true), new Func4<String, String, Integer, Boolean, String>() {
+            @Override
+            public String call(String a, String b, Integer integer, Boolean aBoolean) {
+                return a + b + integer + aBoolean;
+            }
+        });
+
+        assertAllValuesConcurrent();
+
+        assertThat(p.blocking(), is("ab1true"));
+    }
+
+    @Test(expected = TestRuntimeException.class)
+    public void testJoinError() throws InterruptedException {
+        final Promise<String> p = Promise.join(succes("a", 400), error(new TestRuntimeException(), 500), Promise.just(1), Promise.just(true), new Func4<String, String, Integer, Boolean, String>() {
+            @Override
+            public String call(String a, String b, Integer integer, Boolean aBoolean) {
+                return a + b + integer + aBoolean;
+            }
+        });
+
+        p.blocking();
+    }
+
+    @Test
+    public void testJoinPromise() throws InterruptedException {
+        final Promise<Promise<String>> p = Promise.join(succes("a", 400), succes("b", 500), Promise.just(1), Promise.just(true), new Func4<String, String, Integer, Boolean, Promise<String>>() {
+            @Override
+            public Promise<String> call(String a, String b, Integer integer, Boolean aBoolean) {
+                return Promise.just(a + b + integer + aBoolean);
+            }
+        });
+
+        final Promise<String> f = p.flatMap(new Func1<Promise<String>, Promise<String>>() {
+            @Override
+            public Promise<String> call(Promise<String> stringPromise) {
+                return stringPromise;
+            }
+        });
+
+        assertThat(f.blocking(), is("ab1true"));
     }
 
     @Test
@@ -475,11 +540,11 @@ public class PromiseTest {
         });
     }
 
-    private void testAllValuesConcurrent() {
-        testConcurrent(lastStartTimes.keySet());
+    private void assertAllValuesConcurrent() {
+        assertConcurrent(lastStartTimes.keySet());
     }
 
-    private void testConcurrent(Iterable<String> values) {
+    private void assertConcurrent(Iterable<String> values) {
         long now = System.currentTimeMillis();
         for (String value : values) {
             assertThat(lastStartTimes.get(value), Matchers.lessThanOrEqualTo(now + 50));

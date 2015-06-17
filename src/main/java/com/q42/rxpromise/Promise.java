@@ -1,15 +1,17 @@
 package com.q42.rxpromise;
 
 import rx.*;
-import rx.Observable;
-import rx.Observer;
 import rx.exceptions.CompositeException;
 import rx.functions.*;
 import rx.schedulers.Schedulers;
 import rx.subjects.ReplaySubject;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Arrays.asList;
@@ -43,7 +45,7 @@ public class Promise<T> {
      * If the observable emits more than one item or no items the promise is rejected with an
      * {@code IllegalArgumentException} or {@code NoSuchElementException} respectively.
      */
-    public static <T> Promise<T> promise(Observable<T> observable) {
+    public static <T> Promise<T> from(Observable<T> observable) {
         return new Promise<T>(observable);
     }
 
@@ -51,14 +53,14 @@ public class Promise<T> {
      * Returns a promise that executes the specified {@link Callable} asynchronously on the {@link #DEFAULT_ASYNC_SCHEDULER}
      */
     public static <T> Promise<T> async(final Callable<T> callable) {
-        return promise(callable, DEFAULT_ASYNC_SCHEDULER);
+        return from(callable, DEFAULT_ASYNC_SCHEDULER);
     }
 
     /**
      * Returns a promise that executes the specified {@link Callable} on the specified {@link Scheduler}
      */
-    public static <T> Promise<T> promise(final Callable<T> callable, final Scheduler scheduler) {
-        return promise(Observable.create(new Observable.OnSubscribe<T>() {
+    public static <T> Promise<T> from(final Callable<T> callable, final Scheduler scheduler) {
+        return from(Observable.create(new Observable.OnSubscribe<T>() {
             @Override
             public void call(Subscriber<? super T> subscriber) {
                 try {
@@ -72,17 +74,26 @@ public class Promise<T> {
     }
 
     /**
-     * Returns a promise that fulfills with the supplied value immediately.
+     * Converts a {@link Future} into a promise.
+     * @param future the source {@link Future}
+     * @param scheduler the {@link Scheduler} to wait for the Future on.
      */
-    public static <T> Promise<T> just(final T value) {
-        return promise(Observable.just(value));
+    public static <T> Promise<T> from(Future<? extends T> future, Scheduler scheduler) {
+        return new Promise<T>(Observable.from(future, scheduler));
     }
 
     /**
-     * Returns a promise that will be rejected immediately with the supplied error
+     * Returns a promise that fulfills with the supplied value immediately.
+     */
+    public static <T> Promise<T> just(final T value) {
+        return from(Observable.just(value));
+    }
+
+    /**
+     * Returns a promise that will be rejected immediately with the supplied error.
      */
     public static <T> Promise<T> error(final Throwable throwable) {
-        return promise(Observable.<T>error(throwable));
+        return from(Observable.<T>error(throwable));
     }
 
     /**
@@ -114,7 +125,7 @@ public class Promise<T> {
             return just(Collections.<T>emptyList());
         }
 
-        return promise(combineLatest(observables, new FuncN<List<T>>() {
+        return from(combineLatest(observables, new FuncN<List<T>>() {
             @Override
             public List<T> call(Object... args) {
                 return asList((T[]) args);
@@ -161,7 +172,7 @@ public class Promise<T> {
             throw new IllegalArgumentException("Iterable does not contains enough promises");
         }
 
-        return promise(merge(coerceToList(observables, new Func2<Observable<T>, Integer, Observable<T>>() {
+        return from(merge(coerceToList(observables, new Func2<Observable<T>, Integer, Observable<T>>() {
             @Override
             public Observable<T> call(Observable<T> observable, Integer integer) {
                 return observable.onErrorResumeNext(new Func1<Throwable, Observable<T>>() {
@@ -202,7 +213,7 @@ public class Promise<T> {
      * @return A promise that combines the values into a {@link List}
      */
     public static <T> Promise<List<T>> any(final Iterable<Promise<T>> promises) {
-        return promise(merge(coerceToList(promises, Promise.<T>ignoreRejection())).toList());
+        return from(merge(coerceToList(promises, Promise.<T>ignoreRejection())).toList());
     }
 
     /**
@@ -213,7 +224,7 @@ public class Promise<T> {
     }
 
     /**
-     * Maps this promise to a promise of type U.
+     * Maps this promise to a promise of type U by applying the specified function.
      */
     public <U> Promise<U> map(Func1<T, U> func) {
         return new Promise<U>(this.observable.map(func));
@@ -274,7 +285,7 @@ public class Promise<T> {
     }
 
     /**
-     * Maps the result of this promise to a promise for a result of type U, and flattens that to be a single promise for U.
+     * Maps the result of this promise to a promise for a result of type U, and flattens that to be a single promise for U by applying the specified function.
      */
     public <U> Promise<U> flatMap(final Func1<T, Promise<U>> func) {
         return new Promise<U>(this.observable.flatMap(new Func1<T, Observable<U>>() {
@@ -413,7 +424,63 @@ public class Promise<T> {
     }
 
     /**
-     * Used in (integration) tests to block and wait for the result. This is _not_ meant
+     * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
+     */
+    public static <T1, T2, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, final Func2<T1, T2, R> zipFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, zipFunction));
+    }
+
+    /**
+     * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
+     */
+    public static <T1, T2, T3, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, final Func3<T1, T2, T3, R> zipFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, zipFunction));
+    }
+
+    /**
+     * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
+     */
+    public static <T1, T2, T3, T4, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, final Func4<T1, T2, T3, T4, R> zipFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, zipFunction));
+    }
+
+    /**
+     * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
+     */
+    public static <T1, T2, T3, T4, T5, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, final Func5<T1, T2, T3, T4, T5, R> zipFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, zipFunction));
+    }
+
+    /**
+     * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
+     */
+    public static <T1, T2, T3, T4, T5, T6, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, final Func6<T1, T2, T3, T4, T5, T6, R> zipFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, zipFunction));
+    }
+
+    /**
+     * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
+     */
+    public static <T1, T2, T3, T4, T5, T6, T7, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, final Func7<T1, T2, T3, T4, T5, T6, T7, R> zipFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, zipFunction));
+    }
+
+    /**
+     * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
+     */
+    public static <T1, T2, T3, T4, T5, T6, T7, T8, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, Promise<T8> p8, final Func8<T1, T2, T3, T4, T5, T6, T7, T8, R> zipFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, p8.observable, zipFunction));
+    }
+
+    /**
+     * Combines the values of the promises into a promise of type R by applying the specified function. If any of the promises are rejected the returned promise is immediately rejected.
+     */
+    public static <T1, T2, T3, T4, T5, T6, T7, T8, T9, R> Promise<R> join(Promise<T1> p1, Promise<T2> p2, Promise<T3> p3, Promise<T4> p4, Promise<T5> p5, Promise<T6> p6, Promise<T7> p7, Promise<T8> p8, Promise<T9> p9, final Func9<T1, T2, T3, T4, T5, T6, T7, T8, T9, R> zipFunction) {
+        return new Promise<R>(Observable.zip(p1.observable, p2.observable, p3.observable, p4.observable, p5.observable, p6.observable, p7.observable, p8.observable, p9.observable, zipFunction));
+    }
+
+    /**
+     * Used in tests to block and wait for the result. This is _not_ meant
      * to be used in the normal code base, only for tests!
      */
     public T blocking() {
@@ -460,6 +527,9 @@ public class Promise<T> {
         };
     }
 
+    /**
+     * Gets the underlying observable
+     */
     protected Observable<T> getObservable() {
         return observable;
     }
