@@ -350,7 +350,7 @@ public class Promise<T> {
      * Add a callback for when the promise is either fulfilled or rejected. This callback cannot be unsubscribed.
      */
     public Promise<T> onFinally(Action0 finallyDo) {
-        return new Promise<T>(this.observable.doOnTerminate(finallyDo));
+        return new Promise<T>(this.observable.finallyDo(finallyDo));
     }
 
     /**

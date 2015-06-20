@@ -450,6 +450,29 @@ public class PromiseTest {
     }
 
     @Test
+    public void tesOnFinallyAfterSuccess() {
+        final List<String> invoked = new ArrayList<String>();
+        succes("a", 50).onFinally(new Action0() {
+            @Override
+            public void call() {
+                invoked.add("onFinally");
+            }
+        }).onSuccess(new Action1<String>() {
+            @Override
+            public void call(String s) {
+                invoked.add("onSuccess1");
+            }
+        }).onSuccess(new Action1<String>() {
+            @Override
+            public void call(String s) {
+                invoked.add("onSuccess2");
+            }
+        }).blocking();
+
+        assertThat(invoked, contains("onSuccess1", "onSuccess2", "onFinally"));
+    }
+
+    @Test
     public void tesOnError() {
         final List<String> invoked = new ArrayList<String>(1);
         error(new TestException(), 50).onError(new Action1<Throwable>() {
