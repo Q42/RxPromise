@@ -104,3 +104,6 @@ Promise.async(Test::longRunningOperation).callbacksOn(AndroidSchedulers.mainThre
     // Update the view here
 });
 ```
+## License
+
+RxPromise is available under the MIT license. See the [LICENSE file](LICENSE) for more info.
