@@ -69,7 +69,7 @@ public class Promise<T> {
     private final Observable<T> observable;
 
     private Promise(final Observable<T> observable) {
-        this.observable = applyObserveOnScheduler(observable, DEFAULT_CALLBACKS_SCHEDULER).single().replay(1).autoConnect(0);
+        this.observable = applyObserveOnScheduler(observable, DEFAULT_CALLBACKS_SCHEDULER).single().replay().autoConnect(0);
     }
 
     /**
