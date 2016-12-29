@@ -4,7 +4,7 @@ apply plugin: 'maven'
 group = 'com.q42.rxpromise'
 
 sourceCompatibility = 1.7
-version = '1.3'
+version = '1.4'
 
 repositories {
     mavenCentral()

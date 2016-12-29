@@ -1,11 +1,5 @@
 package com.q42.rxpromise;
 
-import rx.*;
-import rx.exceptions.CompositeException;
-import rx.functions.*;
-import rx.schedulers.Schedulers;
-import rx.subjects.ReplaySubject;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -13,6 +7,26 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
+import rx.Observable;
+import rx.Observer;
+import rx.Scheduler;
+import rx.Subscriber;
+import rx.Subscription;
+import rx.exceptions.CompositeException;
+import rx.functions.Action0;
+import rx.functions.Action1;
+import rx.functions.Func1;
+import rx.functions.Func2;
+import rx.functions.Func3;
+import rx.functions.Func4;
+import rx.functions.Func5;
+import rx.functions.Func6;
+import rx.functions.Func7;
+import rx.functions.Func8;
+import rx.functions.Func9;
+import rx.functions.FuncN;
+import rx.schedulers.Schedulers;
 
 import static java.util.Arrays.asList;
 import static rx.Observable.combineLatest;
@@ -55,9 +69,7 @@ public class Promise<T> {
     private final Observable<T> observable;
 
     private Promise(final Observable<T> observable) {
-        final ReplaySubject<T> subject = ReplaySubject.create(1);
-        observable.single().subscribe(subject);
-        this.observable = applyObserveOnScheduler(subject, DEFAULT_CALLBACKS_SCHEDULER);
+        this.observable = applyObserveOnScheduler(observable, DEFAULT_CALLBACKS_SCHEDULER).single().replay(1).autoConnect(0);
     }
 
     /**
@@ -84,10 +96,14 @@ public class Promise<T> {
             @Override
             public void call(Subscriber<? super T> subscriber) {
                 try {
-                    subscriber.onNext(callable.call());
-                    subscriber.onCompleted();
+                    if (!subscriber.isUnsubscribed()) {
+                        subscriber.onNext(callable.call());
+                        subscriber.onCompleted();
+                    }
                 } catch (Throwable throwable) {
-                    subscriber.onError(throwable);
+                    if (!subscriber.isUnsubscribed()) {
+                        subscriber.onError(throwable);
+                    }
                 }
             }
         }).subscribeOn(scheduler));
@@ -550,7 +566,7 @@ public class Promise<T> {
     /**
      * Gets the underlying observable
      */
-    protected Observable<T> getObservable() {
+    public Observable<T> getObservable() {
         return observable;
     }
 }
