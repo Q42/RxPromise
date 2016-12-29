@@ -27,6 +27,7 @@ import rx.functions.Func8;
 import rx.functions.Func9;
 import rx.functions.FuncN;
 import rx.schedulers.Schedulers;
+import rx.subjects.ReplaySubject;
 
 import static java.util.Arrays.asList;
 import static rx.Observable.combineLatest;
@@ -69,7 +70,9 @@ public class Promise<T> {
     private final Observable<T> observable;
 
     private Promise(final Observable<T> observable) {
-        this.observable = applyObserveOnScheduler(observable, DEFAULT_CALLBACKS_SCHEDULER).single().replay().autoConnect(0);
+        final ReplaySubject<T> subject = ReplaySubject.create(1);
+        observable.single().subscribe(subject);
+        this.observable = applyObserveOnScheduler(subject, DEFAULT_CALLBACKS_SCHEDULER);
     }
 
     /**
